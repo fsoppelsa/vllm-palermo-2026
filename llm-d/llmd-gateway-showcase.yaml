@@ -1,0 +1,70 @@
+# ============================================================
+# Inference Gateway CRDs — llm-d Architecture Showcase
+# Questi sono i Custom Resource Definitions che llm-d usa
+# per orchestrare il routing intelligente in produzione.
+#
+# NOTA: Questi manifest richiedono il CRD installato:
+#   kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/experimental-install.yaml
+#   kubectl apply -f https://github.com/llm-d/llm-d/releases/latest/download/crds.yaml
+#
+# Per la demo live vengono mostrati come walkthrough commentato.
+# ============================================================
+
+---
+# InferencePool: definisce un pool di pod vLLM che servono
+# lo stesso modello. L'Inference Scheduler usa le metriche
+# Prometheus di ogni pod (KV cache usage, queue depth,
+# running/waiting requests) per decidere dove mandare ogni richiesta.
+apiVersion: inference.networking.x-k8s.io/v1alpha2
+kind: InferencePool
+metadata:
+  name: llama-pool
+  namespace: llm-d-demo
+spec:
+  # targetPortNumber: porta su cui girano i pod del pool
+  targetPortNumber: 8000
+
+  # selector: quali pod fanno parte di questo pool
+  selector:
+    app: vllm-sim
+
+  # extensionRef: punta all'EndpointPicker Pod (EPP)
+  # L'EPP è il componente che implementa la logica di scheduling:
+  #   - prefix-cache aware: manda la richiesta al pod con KV cache calda
+  #   - load aware: evita pod saturi (queue depth alto)
+  #   - session aware: richieste della stessa sessione → stesso pod
+  extensionRef:
+    name: llama-epp
+    group: ""
+    kind: Service
+
+---
+# InferenceModel: espone un modello agli utenti tramite l'Inference Gateway.
+# Supporta traffic splitting tra versioni diverse dello stesso modello
+# (es. canary deployment, A/B testing tra fine-tuning).
+apiVersion: inference.networking.x-k8s.io/v1alpha2
+kind: InferenceModel
+metadata:
+  name: llama-model
+  namespace: llm-d-demo
+spec:
+  # modelName: il nome del modello come visto dai client (nella richiesta API)
+  modelName: meta-llama/Llama-3.1-8B-Instruct
+
+  # criticality: priorità della richiesta sotto pressione del sistema
+  #   - Critical:  mai shed, anche se il sistema è saturo
+  #   - Standard:  comportamento normale (default)
+  #   - Sheddable: può essere rifiutata se il sistema è sotto pressione
+  criticality: Standard
+
+  # poolRef: a quale InferencePool mandare le richieste
+  poolRef:
+    name: llama-pool
+
+  # targetModels (opzionale): traffic splitting tra modelli diversi.
+  # Utile per canary deployment o A/B testing:
+  # targetModels:
+  #   - name: "llama-v1"      # modello base
+  #     weight: 90            # 90% del traffico
+  #   - name: "llama-v2-ft"   # versione fine-tuned
+  #     weight: 10            # 10% del traffico (canary)

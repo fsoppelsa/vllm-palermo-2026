@@ -1,0 +1,23 @@
+# vLLM Demo — Python dependencies
+#
+# Install on laptop (Parts 2, 3, 4):
+#   pip install openai flask aiohttp requests
+#
+# Install on Jetson (Part 1 only — inside vLLM container or native):
+#   pip install -r requirements.txt
+#   (usually already present in the vLLM container)
+
+# Jetson / Part 1 — model loading
+accelerate>=0.27.0
+
+# API client (Parts 2 & 3)
+openai>=1.12.0
+
+# Async HTTP for batching (Part 3)
+aiohttp>=3.9.0
+
+# Web framework (Part 4)
+flask>=3.0.0
+
+# HTTP streaming proxy (Part 4)
+requests>=2.31.0
